@@ -5,82 +5,16 @@ import json
 import random
 import base64
 from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 import sys
 
 sys.set_int_max_str_digits(100000000)
-
-
-def decrypt(key, encrypted):
-    aes = AES.new(key, AES.MODE_ECB)
-    return aes.decrypt(encrypted)
 
 
 def run(addr, port, number):
     conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn.connect((addr, port))
     logging.info("Alice is connected to {}:{}".format(addr, port))
-    if number == 1:
-        smsg = {}
-        smsg["opcode"] = 0
-        smsg["type"] = "RSAKey"
-        logging.debug("smsg: {}".format(smsg))
-
-        sjs = json.dumps(smsg)
-        logging.debug("sjs: {}".format(sjs))
-
-        sbytes = sjs.encode("ascii")
-        logging.debug("sbytes: {}".format(sbytes))
-
-        conn.send(sbytes)
-        logging.info("[*] Sent: {}".format(sjs))
-
-        rbytes = conn.recv(1024)
-        logging.debug("rbytes: {}".format(rbytes))
-
-        rjs = rbytes.decode("ascii")
-        logging.debug("rjs: {}".format(rjs))
-
-        rmsg = json.loads(rjs)
-        logging.debug("rmsg: {}".format(rmsg))
-
-        def is_prime(n):
-            if n % 2 == 0:
-                return False
-            for i in range(3, int(n**0.5) + 1, 2):
-                if n % i == 0:
-                    return False
-            return True
-
-        def prime_check(p, q):
-            if is_prime(p) and is_prime(q):
-                return True
-            else:
-                return False
-
-        def verify_RSA(p, q, e, d):
-            n = p * q
-            phi = (p - 1) * (q - 1)
-            if (e * d) % phi == 1:
-                return True
-            else:
-                return False
-
-        if rmsg["type"] == "RSAKey" and rmsg["opcode"] == 0:
-            p = rmsg["parameter"]["p"]
-            q = rmsg["parameter"]["q"]
-            e = rmsg["public"]
-            d = rmsg["private"]
-
-            if prime_check(p, q) and verify_RSA(p, q, e, d):
-                logging.info("Alice verified that Bob's RSA key is valid")
-                logging.info("p: {}".format(p))
-                logging.info("q: {}".format(q))
-                logging.info("e: {}".format(e))
-                logging.info("d: {}".format(d))
-            else:
-                logging.error("Alice verified that Bob's RSA key is invalid")
-
-        conn.close()
     if number == 3:
         # Step 1: Send initial message to start DH key exchange
         smsg = {}
@@ -145,21 +79,33 @@ def run(addr, port, number):
             shared_secret = pow(bob_public, alice_private, p)
 
             print("shared_secret: ", shared_secret)
-            secret_bytes = shared_secret.to_bytes(2, byteorder="big")
+            secret_bytes = shared_secret.to_bytes(
+                (shared_secret.bit_length() + 7) // 8, byteorder="big"
+            )
             print("secret_bytes: ", secret_bytes)
-            aes_key = secret_bytes * 16  # Repeat to fill 32 bytes
+            # Ensure the key is 16 bytes for AES-128
+            aes_key = (secret_bytes * (16 // len(secret_bytes) + 1))[:16]
             print("aes_key: ", aes_key)
 
-            # Step 4: Encrypt and send message
+            # Step 4: Encrypt and send message using AES in CFB mode
             message = "hello"
-            encrypted = bytearray()
-            for i in range(len(message)):
-                encrypted.append(ord(message[i]) ^ aes_key[i % len(aes_key)])
+            message_bytes = message.encode("utf-8")
+
+            # Generate a random IV (Initialization Vector)
+            iv = get_random_bytes(16)
+            print("IV: ", iv)
+
+            cipher_encrypt = AES.new(aes_key, AES.MODE_CFB, iv=iv)
+            encrypted = cipher_encrypt.encrypt(message_bytes)
+
+            # Include IV with the encrypted message
+            encrypted_message = iv + encrypted
+            encoded_encrypted = base64.b64encode(encrypted_message).decode("ascii")
 
             smsg = {
                 "opcode": 2,
                 "type": "AES",
-                "encryption": base64.b64encode(encrypted).decode(),
+                "encryption": encoded_encrypted,
             }
             print("smsg: ", smsg)
             conn.send(json.dumps(smsg).encode("ascii"))
@@ -193,13 +139,13 @@ def run(addr, port, number):
                         raise ValueError("Invalid base64 encryption data")
                     print("encrypted_data: ", encrypted_data)
 
-                    # Create AES cipher object and decrypt
-                    cipher = AES.new(aes_key, AES.MODE_ECB)
-                    decrypted = cipher.decrypt(encrypted_data)
-                    print("decrypted: ", decrypted)
+                    # Extract the IV and the actual ciphertext
+                    iv_received = encrypted_data[:16]
+                    encrypted_message = encrypted_data[16:]
 
-                    # Remove padding
-                    decrypted = decrypted[0 : -ord(decrypted[-1])]
+                    # Decrypt the encrypted data
+                    cipher_decrypt = AES.new(aes_key, AES.MODE_CFB, iv=iv_received)
+                    decrypted = cipher_decrypt.decrypt(encrypted_message)
                     print("decrypted: ", decrypted)
 
                     # Convert decrypted bytes to string and print
