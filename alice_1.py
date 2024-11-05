@@ -4,7 +4,7 @@ import logging
 import json
 import random
 import base64
-from crypto.Cipher import AES
+from Crypto.Cipher import AES
 
 
 def decrypt(key, encrypted):
@@ -123,14 +123,19 @@ def run(addr, port, number):
                         return False
                 return True
 
-            if not is_prime(p) or not (1 < g < p):
+            def is_generator(g, p):
+                if g < 2 or g > p - 1:
+                    return False
+                return True
+
+            if not is_prime(p) or not is_generator(g, p):
                 logging.error("Invalid prime or generator received from Bob")
                 conn.close()
                 return
 
             # Generate Alice's DH keypair
             alice_private = random.randint(2, p - 1)
-            alice_public = pow(g, alice_private, p)
+            alice_public = pow(g**alice_private, p)
 
             # Send Alice's public key
             smsg = {"opcode": 1, "type": "DH", "public": alice_public}
@@ -138,7 +143,7 @@ def run(addr, port, number):
             logging.info("[*] Sent DH public key")
 
             # Compute shared secret and derive AES key
-            shared_secret = pow(bob_public, alice_private, p)
+            shared_secret = pow(bob_public**alice_private, p)
             secret_bytes = shared_secret.to_bytes(2, byteorder="big")
             aes_key = secret_bytes * 16  # Repeat to fill 32 bytes
 
@@ -176,24 +181,23 @@ def run(addr, port, number):
                     try:
                         # Base64 decode the encrypted message
                         encrypted_data = base64.b64decode(rmsg["encryption"])
+
                         logging.debug(
                             "[*] Base64 decoded data: {}".format(encrypted_data.hex())
                         )
+
                     except:
                         raise ValueError("Invalid base64 encryption data")
-
-                    import crypto
-                    import sys
-
-                    sys.modules["Crypto"] = crypto
+                    print(rmsg["encryption"])
 
                     # Create AES cipher object and decrypt
                     cipher = AES.new(aes_key, AES.MODE_ECB)
                     decrypted = cipher.decrypt(encrypted_data)
+                    print(decrypted)
 
                     # Remove padding
-                    decrypted = decrypted[0 : -ord(decrypted[-1])]
-
+                    # decrypted = decrypted[0 : -ord(decrypted[-1])]
+                    # print(decrypted)
                     # Convert decrypted bytes to string
                     decrypted_message = decrypted.decode("utf-8", errors="ignore")
                     logging.info(
