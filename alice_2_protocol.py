@@ -98,7 +98,7 @@ def protocol_2(addr, port):
         finally:
             print("Protocol 2 completed.\n")
 
-# Server information
+# Server info
 SERVER_IP = '127.0.0.1'
 PROTOCOL_2_PORT = 5552
 
