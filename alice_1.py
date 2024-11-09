@@ -4,7 +4,7 @@ import logging
 import json
 import random
 import base64
-from Crypto.Cipher import AES
+
 import sys
 
 sys.set_int_max_str_digits(100000000)
@@ -82,6 +82,8 @@ def run(addr, port, number):
 
         conn.close()
     if number == 3:
+        from crypto.Cipher import AES
+
         # Step 1: Send initial message to start DH key exchange
         smsg = {}
         smsg["opcode"] = 0
