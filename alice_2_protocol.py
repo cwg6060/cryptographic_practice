@@ -4,7 +4,7 @@ import base64
 import random
 import logging
 import argparse
-from socket import ConnectionResetError
+import socket
 
 
 def rsa_encrypt(message, public_key):
@@ -32,22 +32,17 @@ def send_packet(conn, packet):
 
 
 def receive_packet(conn):
-    data = ""
-    while True:
-        try:
-            part = conn.recv(1024).decode("ascii")
-            data += part
-            if "\n" in data:
-                packet_str, data = data.split("\n", 1)
-                packet = json.loads(packet_str)
-                print("Received packet:", packet)
-                return packet
-        except ConnectionResetError as e:
-            print("Connection was reset by peer:", e)
-            return None
-        except json.JSONDecodeError as e:
-            print("Error decoding JSON:", e)
-            return None
+    try:
+        data = conn.recv(1024).decode("ascii")
+        packet = json.loads(data)
+        print("Received packet:", packet)
+        return packet
+    except ConnectionResetError as e:
+        print("Connection was reset by peer:", e)
+        return None
+    except json.JSONDecodeError as e:
+        print("Error decoding JSON:", e)
+        return None
 
 
 # Ensure symmetric key consistency in aes_encrypt
@@ -68,22 +63,14 @@ def protocol_2(addr, port):
             print("Connected to Bob")
 
             # Step 1: Request RSA Key
-            send_packet(conn, {"opcode": 0, "type": "RSAKey"})
+            send_packet(conn, {"opcode": 0, "type": "RSA"})
 
             # Step 2: Receive RSA public key from Bob
             rsa_packet = receive_packet(conn)
-            if (
-                rsa_packet
-                and rsa_packet.get("opcode") == 0
-                and rsa_packet.get("type") == "RSAKey"
-            ):
+            if rsa_packet["opcode"] == 1 and rsa_packet["type"] == "RSA":
                 print("Received RSA public key from Bob")
-                public_key_base64 = rsa_packet["public"]
-                public_key_bytes = base64.b64decode(public_key_base64)
-                e, n = (
-                    int.from_bytes(public_key_bytes[:4], "big"),
-                    rsa_packet["parameter"]["n"],
-                )
+                e = rsa_packet["public"]
+                n = rsa_packet["parameter"]["n"]
                 public_key = (e, n)
                 print("Decoded RSA public key:", public_key)
 
@@ -162,14 +149,6 @@ def command_line_args():
         help="Log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)",
         type=str,
         default="INFO",
-    )
-    parser.add_argument(
-        "-n",
-        "--number",
-        metavar="<number of protocol>",
-        help="Number of protocol",
-        type=int,
-        default=1,
     )
     args = parser.parse_args()
     return args
