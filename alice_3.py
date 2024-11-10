@@ -42,19 +42,16 @@ def run(addr, port):
 
     p = rmsg["parameter"]["p"]
     g = rmsg["parameter"]["g"]
-    bob_public_base64 = rmsg["public"]
-    bob_public_encrypted = base64.b64decode(bob_public_base64)
-    bob_public = decrypt(shared_secret, bob_public_encrypted)
-    decrypted = bob_public[0 : -ord(bob_public[-1])]
+    bob_public = rmsg["public"]
 
     # Step 3: Generate Alice's DH keypair and shared secret
     alice_private = random.randint(2, p - 1)
     alice_public = pow(g, alice_private, p)
-    shared_secret = pow(decrypted, alice_private, p)
+    shared_secret = pow(bob_public, alice_private, p)
     logging.info("Computed shared secret with Bob")
 
     # Generate AES key from shared secret
-    shared_secret_base64 = base64.b64encode(shared_secret).decode()
+    shared_secret_base64 = base64.b64encode(shared_secret)
     secret_bytes = shared_secret_base64.encode()
     aes_key = secret_bytes * 16  # Adjust key length as needed
 
