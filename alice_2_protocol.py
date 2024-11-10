@@ -84,7 +84,7 @@ def protocol_2(addr, port):
                 print("Sent encrypted symmetric key to Bob")
 
                 # Step 4: Encrypt message using AES and send to Bob
-                alice_message = "Hello from Alice via AES"
+                alice_message = "Hello"
                 encrypted_message = aes_encrypt(alice_message, symmetric_key)
                 encrypted_message_base64 = base64.b64encode(encrypted_message).decode(
                     "ascii"
