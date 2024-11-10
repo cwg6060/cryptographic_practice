@@ -63,8 +63,11 @@ def run(addr, port):
         logging.info("Sent RSA-encrypted symmetric key to Bob")
 
         rbytes = conn.recv(1024)
+        print(rbytes)
         rjs = rbytes.decode("ascii")
+        print(rjs)
         rmsg = json.loads(rjs)
+        print(rmsg)
         logging.info("Received RSA-encrypted symmetric key from Bob: {}".format(rmsg))
 
         encrypted_data = base64.b64decode(rmsg["encryption"].encode())
