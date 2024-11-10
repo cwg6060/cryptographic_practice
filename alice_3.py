@@ -10,6 +10,11 @@ import base64
 BLOCK_SIZE = 16
 
 
+def unpad(message):
+    padding_length = ord(message[-1])
+    return message[:-padding_length]
+
+
 def decrypt(key, encrypted):
     aes = AES.new(key, AES.MODE_ECB)
     return aes.decrypt(encrypted)
@@ -84,8 +89,9 @@ def run(addr, port):
         if rmsg["opcode"] == 2 and rmsg["type"] == "AES":
             # Step 4: Encrypt and send message to Bob
             encrypted_data = base64.b64decode(rmsg["encryption"].encode())
-            decrypted = decrypt(aes_key, encrypted_data)
-            logging.info("Decrypted message from Bob: {}".format(decrypted.decode()))
+            decrypted = decrypt(aes_key, encrypted_data).decode()
+            unpadded_message = unpad(decrypted)
+            logging.info("Decrypted message from Bob: {}".format(unpadded_message))
             message = "world"
             encrypted = encrypt(aes_key, message)
             encrypted_str = base64.b64encode(encrypted).decode()
