@@ -5,6 +5,26 @@ import random
 import logging
 import argparse
 import socket
+from Crypto.Cipher import AES
+
+BLOCK_SIZE = 16
+
+
+def unpad(message):
+    padding_length = ord(message[-1])
+    return message[:-padding_length]
+
+
+def decrypt(key, encrypted):
+    aes = AES.new(key, AES.MODE_ECB)
+    return aes.decrypt(encrypted)
+
+
+def encrypt(key, msg):
+    pad = BLOCK_SIZE - len(msg)
+    msg = msg + pad * chr(pad)
+    aes = AES.new(key, AES.MODE_ECB)
+    return aes.encrypt(msg.encode())
 
 
 def rsa_encrypt(message, public_key):
@@ -15,12 +35,6 @@ def rsa_encrypt(message, public_key):
         (n.bit_length() + 7) // 8, byteorder="big"
     )
     return encrypted_message
-
-
-def aes_decrypt(encrypted_message, key):
-    # Decrypts the message with XOR operation and returns bytes, not a decoded string
-    decrypted_bytes = bytes([e ^ k for e, k in zip(encrypted_message, key)])
-    return decrypted_bytes  # Return raw bytes instead of decoding
 
 
 def send_packet(conn, packet):
@@ -43,12 +57,6 @@ def receive_packet(conn):
     except json.JSONDecodeError as e:
         print("Error decoding JSON:", e)
         return None
-
-
-# Ensure symmetric key consistency in aes_encrypt
-def aes_encrypt(message, key):
-    message_bytes = message.encode()
-    return bytes([m ^ k for m, k in zip(message_bytes, key)])
 
 
 # Protocol 2 execution
