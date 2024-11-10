@@ -39,50 +39,74 @@ def run(addr, port):
     rjs = rbytes.decode("ascii")
     rmsg = json.loads(rjs)
     logging.info("Received DH parameters from Bob: {}".format(rmsg))
+    if rmsg["opcode"] == 1 and rmsg["type"] == "DH":
+        p = rmsg["parameter"]["p"]
+        g = rmsg["parameter"]["g"]
+        bob_public = rmsg["public"]
 
-    p = rmsg["parameter"]["p"]
-    g = rmsg["parameter"]["g"]
-    bob_public = rmsg["public"]
+        # Step 3: Generate Alice's DH keypair and shared secret
+        alice_private = random.randint(2, p - 1)
+        alice_public = pow(g, alice_private, p)
+        shared_secret = pow(bob_public, alice_private, p)
 
-    # Step 3: Generate Alice's DH keypair and shared secret
-    alice_private = random.randint(2, p - 1)
-    alice_public = pow(g, alice_private, p)
-    shared_secret = pow(bob_public, alice_private, p)
-    logging.info("Computed shared secret with Bob")
+        logging.info("Computed shared secret with Bob")
+        # Generate AES key from shared secret
+        to_byte_shared_secret = shared_secret.to_bytes(2, byteorder="big")
+        # Make 32 bytes by repeating the shared secret bytes
+        aes_key = to_byte_shared_secret * 16
+        # Convert Alice's DH public key to base64
+        base64_alice_public = base64.b64encode(
+            alice_public.to_bytes(2, byteorder="big")
+        ).decode()
+        # Encrypt Alice's base64-encoded public key with AES key
+        encrypted_alice_public = base64.b64encode(
+            encrypt(aes_key, base64_alice_public)
+        ).decode()
 
-    # Generate AES key from shared secret
-    shared_secret_base64 = base64.b64encode(shared_secret)
-    secret_bytes = shared_secret_base64.encode()
-    aes_key = secret_bytes * 16  # Adjust key length as needed
+        smsg = {"opcode": 1, "type": "DH", "public": alice_public}
+        print(smsg)
+        sjs = json.dumps(smsg)
+        sbytes = sjs.encode("ascii")
+        logging.debug("sjs: {}".format(sjs))
 
-    # Step 4: Encrypt and send message to Bob
-    message = "hello"
-    encrypted = encrypt(aes_key, message)
-    encrypted_str = base64.b64encode(encrypted).decode()
-    smsg = {
-        "opcode": 2,
-        "type": "AES",
-        "public": alice_public,
-        "encryption": encrypted_str,
-    }
+        logging.debug("sbytes: {}".format(sbytes))
 
-    sjs = json.dumps(smsg)
-    sbytes = sjs.encode("ascii")
-    conn.sendall(sbytes)
-    logging.info("Sent encrypted message to Bob")
+        conn.sendall(sbytes)
+        logging.info("Sent Alice's DH public key to Bob")
 
-    # Step 5: Receive and decrypt Bob's response
-    rbytes = conn.recv(1024)
-    rjs = rbytes.decode("ascii")
-    rmsg = json.loads(rjs)
-    logging.info("Received encrypted response from Bob: {}".format(rmsg))
+        rbytes = conn.recv(1024)
 
-    encrypted_data = base64.b64decode(rmsg["encryption"].encode())
-    decrypted = decrypt(aes_key, encrypted_data)
-    decrypted_str = decrypted.decode("utf-8")
-    logging.info("Decrypted message from Bob: {}".format(decrypted_str))
+        rjs = rbytes.decode("ascii")
 
-    conn.close()
+        rmsg = json.loads(rjs)
+        logging.info("Received encrypted message from Bob: {}".format(rmsg))
+
+        if rmsg["opcode"] == 2 and rmsg["type"] == "AES":
+            # Step 4: Encrypt and send message to Bob
+            encrypted_data = base64.b64decode(rmsg["encryption"].encode())
+            decrypted = decrypt(aes_key, encrypted_data)
+            logging.info("Decrypted message from Bob: {}".format(decrypted.decode()))
+            message = "world"
+            encrypted = encrypt(aes_key, message)
+            encrypted_str = base64.b64encode(encrypted).decode()
+
+            smsg = {"opcode": 2, "type": "AES", "encryption": encrypted_str}
+            print(smsg)
+
+            try:
+                sjs = json.dumps(smsg)
+            except TypeError as e:
+                logging.error(f"JSON serialization error: {e}")
+                # Handle error appropriately
+            except Exception as e:
+                logging.error(f"Unexpected error during JSON serialization: {e}")
+                # Handle other errors
+            sbytes = sjs.encode("ascii")
+            conn.sendall(sbytes)
+            logging.info("Sent encrypted message to Bob")
+            conn.close()
+    else:
+        print("No")
 
 
 def command_line_args():

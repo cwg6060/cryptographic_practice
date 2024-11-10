@@ -82,7 +82,7 @@ def run(addr, port, number):
 
         conn.close()
     if number == 3:
-        from crypto.Cipher import AES
+        from Crypto.Cipher import AES
 
         # Step 1: Send initial message to start DH key exchange
         smsg = {}
