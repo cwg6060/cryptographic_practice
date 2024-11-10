@@ -19,19 +19,35 @@ def is_prime_basic(n):
         i += 6
     return True
 
+def is_valid_generator(g, p):
+    if g <= 1 or g >= p:
+        return False
+    if pow(g, p - 1, p) != 1:
+        return False
+    return True
+
+def generate_valid_prime_with_valid_generator(start, end):
+    p = random.randint(start, end)
+    while not is_prime_basic(p): 
+        p = random.randint(start, end)
+    g = 2
+    while not is_valid_generator(g, p):
+        g += 1
+    return p, g
+
 def generate_invalid_prime_with_valid_generator(start, end):
     p = random.randint(start, end)
-    while is_prime_basic(p): 
+    while is_prime_basic(p):  
         p = random.randint(start, end)
-    
-    g = 2 
+    g = 2
+    while not is_valid_generator(g, 401): 
+        g += 1
     return p, g
 
 def generate_valid_prime_with_invalid_generator(start, end):
     p = random.randint(start, end)
-    while not is_prime_basic(p): 
+    while not is_prime_basic(p):  
         p = random.randint(start, end)
-    
     g = p - 1  
     return p, g
 
@@ -46,12 +62,11 @@ def validate_packet(packet, expected_opcode):
         return False
     return True
 
-alternate_invalid_flag = 0
+alternate_flag = 0  
 
 def handle_client(conn, addr):
-    global alternate_invalid_flag
+    global alternate_flag
     logging.info("[*] Connected by Alice at {}:{}".format(addr[0], addr[1]))
-
     try:
         data = conn.recv(1024).decode()
         if not data:
@@ -65,21 +80,28 @@ def handle_client(conn, addr):
             logging.info("Sent error response to Alice: %s", json.dumps(error_message))
             return
 
-        if alternate_invalid_flag % 2 == 0:
-            p, g = generate_invalid_prime_with_valid_generator(400, 500)
-            logging.info("Sending invalid p (non-prime) and valid g to Alice: p={}, g={}".format(p, g))
+        if alternate_flag % 2 == 0:
+            p, g = generate_invalid_prime_with_valid_generator(400, 500)  
+            logging.info("Generated invalid p (non-prime) and valid g: p={}, g={}".format(p, g))
         else:
-            p, g = generate_valid_prime_with_invalid_generator(400, 500)
-            logging.info("Sending valid p and invalid g to Alice: p={}, g={}".format(p, g))
+            p, g = generate_valid_prime_with_invalid_generator(400, 500)  
+            logging.info("Generated valid p and invalid g: p={}, g={}".format(p, g))
+        
+        alternate_flag += 1
 
-        alternate_invalid_flag += 1
+        private_key = random.randint(2, 400) 
+        public_key = int(pow(g, private_key, 401))  
+        logging.info("Generated Bob's public key (type: %s): %s", type(public_key), public_key)
 
         dh_message = {
             "opcode": 1,
             "type": "DH",
-            "public": "Base64_encoded_public_key_placeholder",
+            "public": public_key, 
             "parameter": {"p": p, "g": g}
         }
+
+        assert isinstance(dh_message["public"], int), "public_key is not an integer"
+
         conn.sendall(json.dumps(dh_message).encode())
         logging.info("Sent DH parameters to Alice: %s", json.dumps(dh_message))
 
@@ -90,7 +112,7 @@ def handle_client(conn, addr):
 
     except Exception as e:
         logging.error("Error during communication with Alice: %s", e)
-    
+
     finally:
         conn.close()
         logging.info("Disconnected from Alice")
@@ -113,8 +135,7 @@ def command_line_args():
     parser.add_argument("-a", "--addr", metavar="<bob's IP address>", help="Bob's IP address", type=str, default="0.0.0.0")
     parser.add_argument("-p", "--port", metavar="<bob's open port>", help="Bob's port", type=int, required=True)
     parser.add_argument("-l", "--log", metavar="<log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)>", help="Log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)", type=str, default="INFO")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 def main():
     args = command_line_args()

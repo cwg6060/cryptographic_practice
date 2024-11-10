@@ -3,7 +3,6 @@ import socket
 import argparse
 import logging
 
-# 소수 여부를 판별하는 함수
 def is_prime(n):
     if n <= 1:
         return False
@@ -18,7 +17,6 @@ def is_prime(n):
         i += 6
     return True
 
-# 유효한 생성자인지 확인하는 함수
 def is_valid_generator(g, p):
     def factorize(n):
         factors = []
@@ -33,13 +31,11 @@ def is_valid_generator(g, p):
         return factors
 
     factors = factorize(p - 1)
-    
     for q in factors:
         if pow(g, (p - 1) // q, p) == 1:
             return False
     return True
 
-# 패킷 유효성 검사 함수
 def validate_packet(packet):
     required_fields = ["opcode", "type", "public", "parameter"]
     parameter_fields = ["p", "g"]
@@ -55,21 +51,20 @@ def validate_packet(packet):
     if not isinstance(packet["type"], str) or packet["type"] != "DH":
         print("Packet validation error: 'type' should be 'DH'")
         return False
-    if not isinstance(packet["public"], (str, int)):
-        print("Packet validation error: 'public' should be a string or integer")
+    if not isinstance(packet["public"], int):
+        print("Packet validation error: 'public' should be an integer")
         return False
     if not isinstance(packet["parameter"], dict):
         print("Packet validation error: 'parameter' should be a dictionary")
         return False
-    
+
     for field in parameter_fields:
         if field not in packet["parameter"]:
             print(f"Packet validation error: Missing 'parameter' field '{field}'")
             return False
-    
+
     return True
 
-# 서버와 통신하는 함수
 def communicate_with_server(addr, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((addr, port))
@@ -96,39 +91,33 @@ def communicate_with_server(addr, port):
         prime_check = is_prime(p)
         generator_check = is_valid_generator(g, p) if prime_check else False
 
-        # p가 유효하지 않은 경우
         if not prime_check:
             error_message = {"opcode": 3, "error": "incorrect prime number"}
             logging.info("Alice response: %s", json.dumps(error_message))
             client_socket.sendall(json.dumps(error_message).encode())
-        # g가 유효하지 않은 경우
         elif not generator_check:
             error_message = {"opcode": 3, "error": "incorrect generator"}
             logging.info("Alice response: %s", json.dumps(error_message))
             client_socket.sendall(json.dumps(error_message).encode())
-        # 둘 다 유효한 경우
         else:
-            success_message = {"opcode": 2, "status": "success"}
-            logging.info("Alice response: %s", json.dumps(success_message))
-            client_socket.sendall(json.dumps(success_message).encode())
-    
+            logging.error("Unexpected valid p and g received")
+            error_message = {"opcode": 3, "error": "unexpected valid parameters"}
+            client_socket.sendall(json.dumps(error_message).encode())
+
     except Exception as e:
         logging.error("Error during communication: %s", e)
-    
+
     finally:
         client_socket.close()
         logging.info("Disconnected from server")
 
-# 명령줄 인자 처리
 def command_line_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--addr", metavar="<bob's address>", help="Bob's address", type=str, required=True)
     parser.add_argument("-p", "--port", metavar="<bob's port>", help="Bob's port", type=int, required=True)
-    parser.add_argument("-l", "--log", metavar="<log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)>", help="Log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)", type=str, default="INFO")
-    args = parser.parse_args()
-    return args
+    parser.add_argument("-l", "--log", metavar="<log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)>", help="Log level", type=str, default="INFO")
+    return parser.parse_args()
 
-# 메인 함수
 def main():
     args = command_line_args()
     log_level = getattr(logging, args.log.upper(), logging.INFO)
@@ -138,4 +127,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
