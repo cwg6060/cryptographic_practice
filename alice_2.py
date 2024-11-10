@@ -77,7 +77,7 @@ def run(addr, port):
 
         # Step 3: AES Message Exchange
         # Encrypt the message with AES and send it
-        message = "hello"
+        message = "world"
         encrypted_message = encrypt(symmetric_key, message)
         base64_encrypted_message = base64.b64encode(encrypted_message).decode()
 

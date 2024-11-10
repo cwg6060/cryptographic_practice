@@ -11,12 +11,12 @@ def compute_shared_secret(public_key, private_key, p):
 def main():
     # Set up Eve's socket to intercept communication from Alice on port 5554
     eve_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    eve_socket.bind(("0.0.0.0", 5554))  # Listen on a separate port
+    eve_socket.bind(("127.0.0.1", 5554))  # Listen on a separate port
     eve_socket.listen(5)
 
     # Connect to Bob on port 5553
     bob_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    bob_socket.connect(("127.0.0.1", 5553))  # Forward to Bob's port
+    bob_socket.connect(("127.0.0.1", 5555))  # Forward to Bob's port
 
     # Accept connection from Alice
     conn, addr = eve_socket.accept()

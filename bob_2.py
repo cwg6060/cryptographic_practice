@@ -55,52 +55,55 @@ def gcd(a, b):
 
 
 def run(addr, port):
-    # 소켓 생성 및 연결 설정
+    # Create socket and setup connection
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((addr, port))
     server_socket.listen(1)
     logging.info("Bob is waiting for connection on {}:{}".format(addr, port))
 
-    # 연결 수락
+    # Accept connection
     conn, _ = server_socket.accept()
     logging.info("Alice is connected")
 
-    # RSA 키 생성
+    # Generate RSA keys
     p, q, e, d, n = gen_RSA()
 
-    # Step 1: RSA 공개 키를 Alice에 전송
+    # Receive initial request from Alice
+    rbytes = conn.recv(1024)
+    rjs = rbytes.decode("ascii")
+    rmsg = json.loads(rjs)
+
+    # Step 1: Send RSA public key to Alice
     smsg = {"opcode": 1, "type": "RSA", "public": e, "parameter": {"n": n}}
     sjs = json.dumps(smsg)
     conn.send(sjs.encode("ascii"))
     logging.info("Sent RSA public key to Alice")
 
-    # Step 2: 대칭 키 수신 및 복호화
+    # Step 2: Receive and decrypt symmetric key
     rbytes = conn.recv(1024)
     rjs = rbytes.decode("ascii")
     rmsg = json.loads(rjs)
     logging.info("Received RSA-encrypted symmetric key from Alice: {}".format(rmsg))
-    print(rmsg)
-    print(rmsg["opcode"])
-    print(rmsg["type"])
 
-    encrypted_key = rmsg["encrypted_key"]
-    symmetric_key = bytearray()
-    for encrypted_byte in encrypted_key:
-        decrypted_byte = pow(encrypted_byte, d, n)
-        symmetric_key.append(decrypted_byte)
+    if rmsg["opcode"] == 2 and rmsg["type"] == "RSA":
+        encrypted_key = rmsg["encrypted_key"]
+        symmetric_key = bytearray()
+        for encrypted_byte in encrypted_key:
+            decrypted_byte = pow(encrypted_byte, d, n)
+            symmetric_key.append(decrypted_byte)
 
-    # Step 3: AES로 메시지 처리
-    message = "world"
-    encrypted_message = encrypt_aes(symmetric_key, message)
-    base64_encrypted_message = base64.b64encode(encrypted_message).decode()
+        # Step 3: Process message with AES
+        message = "world"
+        encrypted_message = encrypt_aes(symmetric_key, message)
+        base64_encrypted_message = base64.b64encode(encrypted_message).decode()
 
-    # AES 암호화된 메시지를 Alice에 전송
-    smsg = {"opcode": 2, "type": "AES", "encryption": base64_encrypted_message}
-    sjs = json.dumps(smsg)
-    conn.send(sjs.encode("ascii"))
-    logging.info("Sent AES-encrypted message to Alice")
+        # Send AES encrypted message to Alice
+        smsg = {"opcode": 2, "type": "AES", "encryption": base64_encrypted_message}
+        sjs = json.dumps(smsg)
+        conn.send(sjs.encode("ascii"))
+        logging.info("Sent AES-encrypted message to Alice")
 
-    # Alice로부터 암호화된 메시지 수신 및 복호화
+    # Receive and decrypt encrypted message from Alice
     rbytes = conn.recv(1024)
     rjs = rbytes.decode("ascii")
     rmsg = json.loads(rjs)
@@ -112,7 +115,7 @@ def run(addr, port):
         unpadded_message = unpad(decrypted)
         logging.info("Decrypted message from Alice: {}".format(unpadded_message))
 
-    # 연결 종료
+    # Close connections
     conn.close()
     server_socket.close()
 
