@@ -102,9 +102,6 @@ def compute_shared_secret(p, g, alice_public, bob_public):
     return None
 
 
-# a
-
-
 def main():
     import argparse
 
